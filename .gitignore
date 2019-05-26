@@ -1,0 +1,9 @@
+node_modules/
+tests_output
+reports/
+camera-site_files/
+tests_output/
+data/
+server/results.json
+coverage/
+.vscode/
