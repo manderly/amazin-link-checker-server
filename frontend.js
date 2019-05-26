@@ -2,7 +2,7 @@ module.exports = {
   tags: ['default'],
   'Step one: page is properly formed' : function (client) {
     client
-      .url('localhost:8080')
+      .url('localhost:3000')
       .waitForElementVisible('body', 1000)
       .assert.title('Amazin\' Affiliate Link Checker')
       .assert.visible('#link-checker-title')
