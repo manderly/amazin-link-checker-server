@@ -144,7 +144,7 @@ app.use(function(req, res, next) {
     next();
 });
 
-app.use(express.static(path.join(__dirname, '../client/dist')));
+app.use(express.static(path.join(__dirname, './public')));
 
 app.get('/fetch-static-data', (req, res) => {
     fs.readFile('./results.json', 'utf8', function(err, data) {
