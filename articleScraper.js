@@ -47,64 +47,62 @@ const extractAhrefAndText = function(linkObject) {     //linkObject is: $('a', h
     return extracted;
 }
 
-const articleScraper = function (url) {
-    return new Promise((resolve, reject) => {
-        rp(url)
-            .then(function (html) {
+async function articleScraper(url) {
+    try {
+        let html = await rp(url);
+        console.log(html);
 
-                const urls = [];
+        const urls = [];
 
-                var shortenedExp = /(https?:\/\/(.+?\.)?(amzn.to)(\/[A-Za-z0-9\-\._~:\/\?#\[\]@!$&'\(\)\*\+,;\=]*)?)/;
+        var shortenedExp = /(https?:\/\/(.+?\.)?(amzn.to)(\/[A-Za-z0-9\-\._~:\/\?#\[\]@!$&'\(\)\*\+,;\=]*)?)/;
+    
+        var urlsCount = $(html).find('a').length;
+        //console.log('Found ' + urlsCount + ' URLs');
+        // we now have ALL the urls, whether they're affiliate links or not 
+        // now check each one to see if it's an affiliate link, and if it is, push it to urls 
 
-                var urlsCount = $(html).find('a').length;
-                //console.log('Found ' + urlsCount + ' URLs');
-
-                // we now have ALL the urls, whether they're affiliate links or not 
-                // now check each one to see if it's an affiliate link, and if it is, push it to urls 
-            
-                for (let i = 0; i < urlsCount; i++) {
-                    //console.log("\nEVALUATING URL #", i);
-
-                    let extracted = extractAhrefAndText($('a', html)[i]); // object with url and user-readable link text 
-
-                    // if we have an href, look for the tag or the amzn.to/ASIN format
-                    if (extracted.ahref) {
-
-                        // if it has 'tag=', we are going to assume it's an affiliate link
-                        let containsTag = extracted.ahref.includes('tag=');
-
-                        // if it does not have 'tag=', see if it is a shortened URL 
-                        let shortened = shortenedExp.test(extracted.ahref);
-
-                        /* 
-                        console.log(
-                            "URL REPORT:\n" +
-                            extracted.ahref + "\n" +
-                            '-- Shortened: ' + shortened + "\n" + 
-                            '-- Contains tag: ' + containsTag
-                            );
-                        */
-
-                        // a url gets to go into the array if it either has a tag or matches the expression 
-                        if (containsTag || shortened ) {
-                            let articleURLData = {
-                                url: extracted.ahref,
-                                urlText: extracted.urlText
-                            }
-                            urls.push(articleURLData);
-                        } else {
-                            console.log("This is not an Amazon URL:", extracted.ahref);
-                        }
-                    } else {
-                        console.log("This URL does not have an ahref property:", extracted);
-                    } 
+        for (let i = 0; i < urlsCount; i++) {
+            //console.log("\nEVALUATING URL #", i);
+            let extracted = extractAhrefAndText($('a', html)[i]); // object with url and user-readable link text 
+    
+    
+            // if we have an href, look for the tag or the amzn.to/ASIN format
+            if (extracted.ahref) {
+    
+                // if it has 'tag=', we are going to assume it's an affiliate link
+                let containsTag = extracted.ahref.includes('tag=');
+    
+                // if it does not have 'tag=', see if it is a shortened URL 
+                let shortened = shortenedExp.test(extracted.ahref);
+    
+                /*
+                console.log(
+                    "URL REPORT:\n" +
+                    extracted.ahref + "\n" +
+                    '-- Shortened: ' + shortened + "\n" +
+                    '-- Contains tag: ' + containsTag
+                    );
+                */
+                // a url gets to go into the array if it either has a tag or matches the expression 
+                if (containsTag || shortened) {
+                    let articleURLData = {
+                        url: extracted.ahref,
+                        urlText: extracted.urlText
+                    };
+                    urls.push(articleURLData);
+                } else {
+                    console.log("This is not an Amazon URL:", extracted.ahref);
                 }
-                //console.log(urls);
-                resolve(urls);
-            }).catch((err) => {
-                console.log(err);
-            });
-    });
+            } else {
+                console.log("This URL does not have an ahref property:", extracted);
+            }
+        }
+
+        return urls;
+    } catch(err) {
+        console.log("Get HTML failed", err);
+    }
+    return [];
 };
 
 module.exports = articleScraper;

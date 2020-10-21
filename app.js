@@ -44,7 +44,7 @@ function sendScrapedURLCount(count) {
     io.emit('urlsScraped', count);
 }
 
-io.on('connection', function(socket){
+io.on('connection', function(socket) {
     console.log('a user connected: ', socket.id);
     connections.push(socket.id);
 
@@ -57,9 +57,7 @@ io.on('connection', function(socket){
         stopSignalSent = true;
     })
 
-    socket.on('beginProcessing', (url, socketID, awsID, awsSecret, awsTag) => {
-        let asins = [];
-
+    socket.on('beginProcessing', async (url, socketID, awsID, awsSecret, awsTag) => {
         console.log("url: ", url);
         console.log("socketID: ", socketID);
         console.log("awsID: ", awsID);
@@ -68,48 +66,28 @@ io.on('connection', function(socket){
 
         stopSignalSent = false;
 
-        articleScraper(url)
-        .then(urls => {
-            console.log("app.js URLS:");
-            console.log(urls);
-            console.log("urls count:", urls.length);
+        let urls = await articleScraper(url);
 
-            sendScrapedURLCount(urls.length);
-            /* The scraper returns an array of Amazon affiliate links from the user's blog article .
-               This code visits each one and builds an object representing the data on the page, 
-               and displays that data to the user.
-            */
+        console.log("app.js URLS:");
+        console.log(urls);
+        console.log("urls count:", urls.length);
 
-            let results = []; // also build an array of results to write to a file for offline testing
+        sendScrapedURLCount(urls.length);
+        /* The scraper returns an array of Amazon affiliate links from the user's blog article .
+            This code visits each one and builds an object representing the data on the page, 
+            and displays that data to the user.
+        */
 
-            /* Build an array of ASINs by processing each URL */
-            urls.filter(u => u !== null && u !== undefined).forEach(async (urlData, index) => {  
-                console.log("URL #" + index + ":" + urlData.url);
+        let results = []; // also build an array of results to write to a file for offline testing
 
-                let data = await extractASINAndTagFromURL(urlData.url, index);
+        /* Build an array of ASINs by processing each URL */
+        urls.filter(u => u !== null && u !== undefined);
 
-                if (!urlCache[urlData.url]) {
-                    // make an entry for it in the cache 
-                    urlCache[urlData.url] = {
-                        itemName:"unprocessed",
-                        validOnAmazon:false,
-                        asin: data.asin,
-                        tag: data.tag,
-                    }
-                }
+        let asins = await getAsins(urls);
 
-                if (data.asin) {
-                    asins.push(data.asin);
-                    console.log("ASIN: " + data.asin + " TAG: " + data.tag);
-                } else {
-                    console.log(urlData.url + " does not have a valid ASIN");
-                }
-                
-            });        
-
-            console.log("asins array for Amazon:");
-            console.log(asins);
-        });
+        console.log("asins array for Amazon:");
+        console.log(asins);
+    });
                 // this is either a URL we've seen before or a brand new one
                 
                 /*
@@ -205,7 +183,6 @@ io.on('connection', function(socket){
                     console.log(error)
                 });
                 */
-    });
 });
 
 app.use(function(req, res, next) {
@@ -226,6 +203,36 @@ app.get('/fetch-static-data', (req, res) => {
     });
 });
 
+async function getAsins(urls) {
+    let asins = [];
+
+    for await (let urlData of urls) {
+        console.log("Processing:" + urlData.url);
+
+        let data = await extractASINAndTagFromURL(urlData.url);
+
+        if (!urlCache[urlData.url]) {
+            // make an entry for it in the cache 
+            urlCache[urlData.url] = {
+                itemName:"unprocessed",
+                validOnAmazon:false,
+                asin: data.asin,
+                tag: data.tag,
+            }
+        }
+
+        if (data.asin) {
+            asins.push(data.asin);
+            console.log("ASIN: " + data.asin + " TAG: " + data.tag);
+        } else {
+            console.log(urlData.url + " does not have a valid ASIN");
+        }
+    }
+    
+    return asins;
+
+};
+
 async function extractASINAndTagFromURL(url, index) {
     /* 
         Some example urls: 
@@ -245,8 +252,8 @@ async function extractASINAndTagFromURL(url, index) {
     const shortenedMatch = url.match(/http(s?):\/\/amzn.to\/([a-zA-Z0-9]+)/);
     const shortened = shortenedMatch ? shortenedMatch[0] : index;
 
-    console.log(shortenedMatch);
-    console.log(shortened);
+    console.log("shortenedMatch: " + shortenedMatch);
+    console.log("shortened: " + shortened);
 
     if (shortenedMatch) {
         // if this is a shortened URL we have to figure out where it goes 
