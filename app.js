@@ -104,19 +104,20 @@ io.on('connection', function(socket){
                                 idType: 'ASIN',
                                 itemId: [await extractASINFromURL(urlData.url, index)] //must go to Amazon as array
                             }).then((azonResponse) => {
-                                //console.log("Amazon response:");
-                                //console.log(azonResponse[0].ItemAttributes[0].ListPrice[0].FormattedPrice[0]);
+                                console.log("Amazon response:");
+                                console.log(azonResponse[0].ItemAttributes[0].ListPrice[0].FormattedPrice[0]);
+                                
                                 urlCache[urlData.url].validOnAmazon = true;
                                 urlCache[urlData.url].itemName = azonResponse[0].ItemAttributes[0].Title[0];
                                 sendToFront(urlData, results, socketID);
                             }).catch((err) => { 
-                                let errMsg = err.length ? err[0].Error[0].Code : 'elseError';
+                                let errMsg = err && err.length ? err[0].Error[0].Code : 'elseError';
                                 urlCache[urlData.url].itemName = getItemErrorName(errMsg);
                                 urlCache[urlData.url].validOnAmazon = false;
                                 sendToFront(urlData, results, socketID);
                             });   
                         }
-                    }, index * 5000);
+                    }, index * 10000);
             } else {
                 // we've already recorded amazon data for this url
                 sendToFront(urlData, results, socketID);
@@ -169,7 +170,7 @@ async function extractASINFromURL(url, index) {
 
     let asin = '';
 
-    const shortenedMatch = url.match(/http:\/\/amzn.to\/([a-zA-Z0-9]+)/);
+    const shortenedMatch = url.match(/http(s?):\/\/amzn.to\/([a-zA-Z0-9]+)/);
     const shortened = shortenedMatch ? shortenedMatch[0] : index;
 
     if (shortenedMatch) {
@@ -189,15 +190,22 @@ async function extractASINFromURL(url, index) {
             } else {
                 //console.log('This url can\'t be expanded');
             }
-    } else {
+    } else if (shortened) {
         // it's already a long URL 
         const tagRaw = url.match(/(tag=([A-Za-z0-9-]{3,}))/);
-        tag = tagRaw[0].replace('tag=','');
-        urlCache[url].tag = tag;
-
-        //todo: duplicated code (line 182)
-        const asinMatch = url.match(/([A-Z0-9])\w{4,}/);
-        asin = asinMatch ? asinMatch[0] : index;
+        if (tagRaw) {
+            tag = tagRaw[0].replace('tag=','');
+            urlCache[url].tag = tag;
+    
+            //todo: duplicated code (line 182)
+            const asinMatch = url.match(/([A-Z0-9])\w{4,}/);
+            asin = asinMatch ? asinMatch[0] : index;
+        } else {
+            console.log("Could not parse this shortened url:", url);
+        }
+        
+    } else {
+        console.log("Could not parse this url:", url);
     }
     
     return asin;

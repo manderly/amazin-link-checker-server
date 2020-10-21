@@ -1,7 +1,7 @@
 const rp = require('request-promise');
 const $ = require('cheerio');
 
-var fs = require('fs'); //todo: remove later when scraper takes user's url
+var fs = require('fs');
 
 /* 
 Takes in a blog article url (supplied by website's user) and scrapes the article for
@@ -11,9 +11,6 @@ Amazon affiliate links. It returns an array of affiliate links to app.js.
 const articleScraper = function (url) {
     console.log("url came in as: ", url);
     return new Promise((resolve, reject) => {
-        //todo: take in the url given to the site by the user 
-
-        //fs.readFile('./camera-site.html', 'utf8', function(err, data) {
         rp(url)
             .then(function (html) {
 
@@ -21,7 +18,6 @@ const articleScraper = function (url) {
 
                 var expression = /(https?:\/\/(.+?\.)?(amazon\.com|amzn.to)(\/[A-Za-z0-9\-\._~:\/\?#\[\]@!$&'\(\)\*\+,;\=]*)?)/;
 
-                //var html = $.load(data).html();
                 var urlsCount = $(html).find('a').length;
 
                 // build up the array of amazon links
@@ -48,6 +44,7 @@ const articleScraper = function (url) {
                             urlText = "Image with affiliate link exists, but filepath could not be retrieved";
                         }
 
+                        // debug tools:
                         //let fullInfo = $('a', html)[i].children[0].attribs["data-lazy-src"];
                         //console.log(fullInfo); // all the info on this element
 
@@ -77,22 +74,10 @@ const articleScraper = function (url) {
                     }
                 }
                 resolve(urls);
+            }).catch((err) => {
+                console.log(err);
             });
     });
 };
 
 module.exports = articleScraper;
-
-
-/*
-    cmd.get('pwd',
-        function(err, data, stderr) {
-            console.log("current working dir is ", data);
-        });
-
-    cmd.get('nightwatch bing.js',
-        function(err, data, stderr) {
-            console.log("waiting");
-        });
-    });
-    */
