@@ -21,6 +21,7 @@
     "chromedriver": "^2.46.0"
   },
   "dependencies": {
+    "amazon-paapi": "^1.0.3",
     "amazon-product-api": "^0.4.4",
     "cheerio": "^1.0.0-rc.3",
     "express": "^4.17.1",

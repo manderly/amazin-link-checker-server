@@ -48,7 +48,6 @@ const extractAhrefAndText = function(linkObject) {     //linkObject is: $('a', h
 }
 
 const articleScraper = function (url) {
-    console.log("Scraping: ", url);
     return new Promise((resolve, reject) => {
         rp(url)
             .then(function (html) {
@@ -100,7 +99,7 @@ const articleScraper = function (url) {
                         console.log("This URL does not have an ahref property:", extracted);
                     } 
                 }
-                console.log(urls);
+                //console.log(urls);
                 resolve(urls);
             }).catch((err) => {
                 console.log(err);
