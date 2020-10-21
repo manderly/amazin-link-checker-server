@@ -167,12 +167,17 @@ async function extractASINFromURL(url, index) {
         https://www.amazon.com/gp/product/B00L8827BI/ref=as_li_tl?ie=UTF8&camp=1789&creative=390957&creativeASIN=B00L8827BI&linkCode=as2&tag=diy07a-20&linkId=GGXKRZCRALWZO2CL
 
         http://amzn.to/2662MG6
+
+        https://www.amazon.de/dp/B0077QSLXI?creativeASIN=B0077QSLXI&tag=eltakosp-21&cv_ct_pg=article-page&cv_ct_id=amzn1.osa.653ce0b4-6ed1-42c8-9daf-6654894dfe55.A1PA6795UKMFR9.de_DE&ascsubtag=amzn1.osa.653ce0b4-6ed1-42c8-9daf-6654894dfe55.A1PA6795UKMFR9.de_DE&linkCode=oaa&cv_ct_wn=article-page
     */
 
     let asin = '';
 
     const shortenedMatch = url.match(/http(s?):\/\/amzn.to\/([a-zA-Z0-9]+)/);
     const shortened = shortenedMatch ? shortenedMatch[0] : index;
+
+    console.log(shortenedMatch);
+    console.log(shortened);
 
     if (shortenedMatch) {
         // if this is a shortened URL we have to figure out where it goes 
@@ -191,7 +196,7 @@ async function extractASINFromURL(url, index) {
             } else {
                 //console.log('This url can\'t be expanded');
             }
-    } else if (shortened) {
+    } else {
         // it's already a long URL 
         const tagRaw = url.match(/(tag=([A-Za-z0-9-]{3,}))/);
         if (tagRaw) {
@@ -201,12 +206,10 @@ async function extractASINFromURL(url, index) {
             //todo: duplicated code (line 182)
             const asinMatch = url.match(/([A-Z0-9])\w{4,}/);
             asin = asinMatch ? asinMatch[0] : index;
+            //console.log("asin:", asin);
         } else {
             console.log("Could not parse this shortened url:", url);
         }
-        
-    } else {
-        console.log("Could not parse this url:", url);
     }
     
     return asin;
