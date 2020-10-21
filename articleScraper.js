@@ -6,73 +6,101 @@ var fs = require('fs');
 /* 
 Takes in a blog article url (supplied by website's user) and scrapes the article for
 Amazon affiliate links. It returns an array of affiliate links to app.js.
+
 */
 
+const extractAhrefAndText = function(linkObject) {     //linkObject is: $('a', html)[i]
+
+    var ahref;
+    var urlText;
+
+    if (!linkObject.children.length) {
+        console.log("Weird URL with no children:", linkObject);
+    } else if (linkObject.children.length > 0 && linkObject.children[0].name === 'img') {
+        // image found - use filepath for text
+        ahref = linkObject.children[0].parent.attribs.href;
+
+        if (linkObject.children[0].attribs["data-lazy-src"]) {
+            urlText = linkObject.children[0].attribs["data-lazy-src"];
+        } else if (linkObject.children[0].attribs.src) {
+            urlText = linkObject.children[0].attribs.src;
+        } else {
+            urlText = "Image with affiliate link exists, but filepath could not be retrieved";
+        }
+
+    } else {
+        // for text links - use a href text for text
+        ahref = linkObject.attribs.href;
+        urlText = linkObject.children[0].data;
+    }
+
+    //if urlText never got retrieved...
+    if (!urlText) {
+        urlText = "Link exists, but text could not be retrieved";
+    }
+
+    let extracted = {
+        ahref: ahref,
+        urlText: urlText,
+    }
+
+    return extracted;
+}
+
 const articleScraper = function (url) {
-    console.log("url came in as: ", url);
+    console.log("Scraping: ", url);
     return new Promise((resolve, reject) => {
         rp(url)
             .then(function (html) {
 
                 const urls = [];
 
-                var expression = /(https?:\/\/(.+?\.)?(amazon\.com|amzn.to)(\/[A-Za-z0-9\-\._~:\/\?#\[\]@!$&'\(\)\*\+,;\=]*)?)/;
+                var shortenedExp = /(https?:\/\/(.+?\.)?(amzn.to)(\/[A-Za-z0-9\-\._~:\/\?#\[\]@!$&'\(\)\*\+,;\=]*)?)/;
 
                 var urlsCount = $(html).find('a').length;
+                //console.log('Found ' + urlsCount + ' URLs');
 
-                // build up the array of amazon links
+                // we now have ALL the urls, whether they're affiliate links or not 
+                // now check each one to see if it's an affiliate link, and if it is, push it to urls 
+            
                 for (let i = 0; i < urlsCount; i++) {
-                    // we know there are N urls on the page
-                    // find each one and determine if it's a text link
-                    // (we'll do image links in a later step)
-                    // if it's a text link, save the text as urlText
-                    // if it's an image, save the img filepath as urlText
+                    //console.log("\nEVALUATING URL #", i);
 
-                    var ahref;
-                    var affiliateLink;
-                    var urlText;
+                    let extracted = extractAhrefAndText($('a', html)[i]); // object with url and user-readable link text 
 
-                    if ($('a', html)[i].children[0].name === 'img') {
-                        // image found - use filepath for text
-                        ahref = $('a', html)[i].children[0].parent.attribs.href;
+                    // if we have an href, look for the tag or the amzn.to/ASIN format
+                    if (extracted.ahref) {
 
-                        if ($('a', html)[i].children[0].attribs["data-lazy-src"]) {
-                            urlText = $('a', html)[i].children[0].attribs["data-lazy-src"];
-                        } else if ($('a', html)[i].children[0].attribs.src) {
-                            urlText = $('a', html)[i].children[0].attribs.src;
+                        // if it has 'tag=', we are going to assume it's an affiliate link
+                        let containsTag = extracted.ahref.includes('tag=');
+
+                        // if it does not have 'tag=', see if it is a shortened URL 
+                        let shortened = shortenedExp.test(extracted.ahref);
+
+                        /* 
+                        console.log(
+                            "URL REPORT:\n" +
+                            extracted.ahref + "\n" +
+                            '-- Shortened: ' + shortened + "\n" + 
+                            '-- Contains tag: ' + containsTag
+                            );
+                        */
+
+                        // a url gets to go into the array if it either has a tag or matches the expression 
+                        if (containsTag || shortened ) {
+                            let articleURLData = {
+                                url: extracted.ahref,
+                                urlText: extracted.urlText
+                            }
+                            urls.push(articleURLData);
                         } else {
-                            urlText = "Image with affiliate link exists, but filepath could not be retrieved";
+                            console.log("This is not an Amazon URL:", extracted.ahref);
                         }
-
-                        // debug tools:
-                        //let fullInfo = $('a', html)[i].children[0].attribs["data-lazy-src"];
-                        //console.log(fullInfo); // all the info on this element
-
-                        //let srcInfo = $('a', html)[i].children[0].attribs.src;
-                        //console.log(srcInfo); //gets the image source info 
-
-                        //let imgAHref = $('a', html)[i].children[0].parent.attribs.href;
-                        //console.log(imgAHref); // gets the image's link target
                     } else {
-                        // for text links - use a href text for text
-                        ahref = $('a', html)[i].attribs.href;
-                        urlText = $('a', html)[i].children[0].data;
-                    }
-
-                    //if urlText never got retrieved...
-                    if (!urlText) {
-                        urlText = "Link exists, but text could not be retrieved";
-                    }
-
-                    affiliateLink = expression.test(ahref);
-                    if (affiliateLink) {
-                        let articleURLData = {
-                            url: ahref,
-                            urlText: urlText
-                        }
-                        urls.push(articleURLData);
-                    }
+                        console.log("This URL does not have an ahref property:", extracted);
+                    } 
                 }
+                console.log(urls);
                 resolve(urls);
             }).catch((err) => {
                 console.log(err);

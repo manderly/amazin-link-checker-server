@@ -120,6 +120,7 @@ io.on('connection', function(socket){
                     }, index * 10000);
             } else {
                 // we've already recorded amazon data for this url
+                console.log("Already recorded data for this URL");
                 sendToFront(urlData, results, socketID);
             }
 
