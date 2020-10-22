@@ -50,7 +50,6 @@ const extractAhrefAndText = function(linkObject) {     //linkObject is: $('a', h
 async function articleScraper(url) {
     try {
         let html = await rp(url);
-        console.log(html);
 
         const urls = [];
 
