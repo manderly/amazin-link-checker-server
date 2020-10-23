@@ -50,6 +50,15 @@ io.on('connection', function(socket) {
     })
 
     socket.on('beginProcessing', async (url, socketID, awsID, awsSecret, awsTag, marketplace) => {
+
+        const commonParameters = {
+            'AccessKey': awsID,
+            'SecretKey': awsSecret,
+            'PartnerTag': awsTag,
+            'PartnerType': 'Associates',
+            'Marketplace': marketplace 
+        };
+
         console.log("url: ", url);
         console.log("socketID: ", socketID);
         console.log("awsID: ", awsID);
@@ -79,17 +88,9 @@ io.on('connection', function(socket) {
 
         console.log("asins array for Amazon:");
         console.log(uniqueAsins);
+        console.log("there are " + uniqueAsins.length + "asins in the array");
 
         // now ask Amazon about these ASINs
-
-        const commonParameters = {
-            'AccessKey': awsID,
-            'SecretKey': awsSecret,
-            'PartnerTag': awsTag,
-            'PartnerType': 'Associates',
-            'Marketplace': marketplace 
-        };
-
         const requestParameters = {
             'ItemIds': uniqueAsins,
             'ItemIdType': 'ASIN',
@@ -102,16 +103,6 @@ io.on('connection', function(socket) {
 
         amazonPaapi.GetItems(commonParameters, requestParameters)
             .then(data => {
-                /* 
-                console.log("data:");
-                console.log(data);
-                // do something with the success response.
-                console.log("Errors:");
-                console.log(data.Errors);
-                console.log("ItemsResult:");
-                console.log(data.ItemsResult);
-                */
-
                 // now we can populate ASINCache with the information from Amazon about these ASINs
                 // these ASINs are valid
                 for (let i = 0; i < data.ItemsResult.Items.length; i++) {
@@ -130,6 +121,8 @@ io.on('connection', function(socket) {
                     "Message": "The ItemId B0077QSLXI provided in the request is invalid."
                     }
                 ], */
+
+                console.log(data.Errors);
                 const extractedASINs = data.Errors.map((err) => {
                         const regexp = /[a-zA-Z0-9]{10}/;
                         const match = err.Message.match(regexp);
@@ -170,66 +163,6 @@ io.on('connection', function(socket) {
                 
             });
     });
-                // this is either a URL we've seen before or a brand new one
-                
-                /*
-                if (!urlCache[urlData.url]) {
-                    setTimeout(async () => {
-                        if (connections.findIndex(i => i === socketID) !== -1 && !stopSignalSent) {
-                            console.log("connection still live");
-                            console.log("NEW URL FOUND:", urlData.url);
-
-                            // make an entry for it in the cache 
-                            urlCache[urlData.url] = {
-                                itemName:"unprocessed",
-                                validOnAmazon:false,
-                                asin: '',
-                                tag: 'no tag found'
-                            }
-
-                            // add it to asins array 
-                            let asin = await extractASINFromURL(urlData.url, index);
-                            asins.push(asin);
-    
-                            // send to amazon to build out urlCache object 
-                            /* 
-                            client.getItems({
-                                idType: 'ASIN',
-                                itemId: [await extractASINFromURL(urlData.url, index)] //must go to Amazon as array
-                            }).then((azonResponse) => {
-                                console.log("Amazon response:");
-                                console.log(azonResponse[0].ItemAttributes[0].ListPrice[0].FormattedPrice[0]);
-                                
-                                urlCache[urlData.url].validOnAmazon = true;
-                                urlCache[urlData.url].itemName = azonResponse[0].ItemAttributes[0].Title[0];
-                                sendToFront(urlData, results, socketID);
-                            }).catch((err) => { 
-                                let errMsg = err && err.length ? err[0].Error[0].Code : 'elseError';
-                                urlCache[urlData.url].itemName = getItemErrorName(errMsg);
-                                urlCache[urlData.url].validOnAmazon = false;
-                                sendToFront(urlData, results, socketID);
-                            });  
-                            */ 
-                        //}
-                    //}, index * 10000);
-            //} else {
-                // we've already recorded amazon data for this url
-             //   console.log("Already recorded data for this URL");
-            //    sendToFront(urlData, results, socketID);
-            //}*/
-
-            /*
-            if (results.length === urls.length) {
-                //write it to a local file for easy testing without amazon servers 
-                const fileContents = JSON.stringify(results);
-                fs.writeFile("./results.json", fileContents, (err) => {
-                    if (err) {
-                        console.error(err);
-                        return;
-                    }
-                    console.log("File created!");
-                })
-            }*/
 });
 
 app.use(function(req, res, next) {
@@ -279,27 +212,17 @@ async function getAsins(urls) {
 
 };
 
-async function extractASINAndTagFromURL(url, index) {
-    /* 
-        Some example urls: 
-
-        http://www.amazon.com/VIZIO-M55-C2-55-Inch-Ultra-Smart/dp/B00T63YW38/ref=as_li_ss_tl?s=electronics&ie=UTF8&qid=1460752276&sr=1-2&keywords=vizio+55"&linkCode=sl1&tag=hu15-20&linkId=e2f9cdeebaa790345f213432b01b500a
-
-        https://www.amazon.com/gp/product/B00L8827BI/ref=as_li_tl?ie=UTF8&camp=1789&creative=390957&creativeASIN=B00L8827BI&linkCode=as2&tag=diy07a-20&linkId=GGXKRZCRALWZO2CL
-
-        http://amzn.to/2662MG6
-
-        https://www.amazon.de/dp/B0077QSLXI?creativeASIN=B0077QSLXI&tag=eltakosp-21&cv_ct_pg=article-page&cv_ct_id=amzn1.osa.653ce0b4-6ed1-42c8-9daf-6654894dfe55.A1PA6795UKMFR9.de_DE&ascsubtag=amzn1.osa.653ce0b4-6ed1-42c8-9daf-6654894dfe55.A1PA6795UKMFR9.de_DE&linkCode=oaa&cv_ct_wn=article-page
-    */
-
+async function extractASINAndTagFromURL(url) {
     let asin = '';
     let tag = 'no tag found';
 
+    console.log("extracting ASIN and Tag from this url: ", url);
     const shortenedMatch = url.match(/http(s?):\/\/amzn.to\/([a-zA-Z0-9]+)/);
-    const shortened = shortenedMatch ? shortenedMatch[0] : index;
+    const shortened = shortenedMatch ? shortenedMatch[0] : '';
 
     if (shortenedMatch) {
-        // if this is a shortened URL we have to figure out where it goes 
+        console.log("shortenedMatch is true");
+        // if this is a shortened URL, so we have to figure out where it goes 
         const longURL = await uu.expand(shortened);
             if (longURL) {
                 //console.log(`Original URL is ${longURL}`);
@@ -308,22 +231,21 @@ async function extractASINAndTagFromURL(url, index) {
                 tag = tagRaw[0].replace('tag=','');
 
                 const asinMatch = longURL.match(/\/[A-Z0-9]{4,}\//);
-                asin = asinMatch ? asinMatch[0].replace(/\//g, '') : index;
+                asin = asinMatch ? asinMatch[0].replace(/\//g, '') : '';
                 //console.log("Shortened url processed, got this asin: ", asin);
             } else {
                 console.log('This url can\'t be expanded');
             }
     } else {
+        console.log("long url is true");
         // it's already a long URL 
         const tagRaw = url.match(/(tag=([A-Za-z0-9-]{3,}))/);
-        if (tagRaw) {
-            tag = tagRaw[0].replace('tag=','');
+        tag = tagRaw[0].replace('tag=','');
 
-            const asinMatch = url.match(/([A-Z0-9])\w{4,}/);
-            asin = asinMatch ? asinMatch[0] : index;
-        } else {
-            console.log("Could not parse this shortened url:", url);
-        }
+        const asinMatch = url.match(/\/\w{8,}[A-Z0-9]/);
+        let extractedAsin = asinMatch ? asinMatch[0] : '';
+        asin = extractedAsin.replace('/', ''); // remove leading slash if exists
+        //console.log("Long url processed, got this asin: ", asin);
     }
     
     return {asin, tag};

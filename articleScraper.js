@@ -6,7 +6,6 @@ var fs = require('fs');
 /* 
 Takes in a blog article url (supplied by website's user) and scrapes the article for
 Amazon affiliate links. It returns an array of affiliate links to app.js.
-
 */
 
 const extractAhrefAndText = function(linkObject) {     //linkObject is: $('a', html)[i]
