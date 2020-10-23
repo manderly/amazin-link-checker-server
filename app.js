@@ -36,6 +36,28 @@ function sendScrapedURLCount(count) {
     io.emit('urlsScraped', count);
 }
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function *getBatch(commonParameters, requestParameters) {
+    let index = 0;
+    let asins = requestParameters.ItemIds;
+
+    while (index < asins.length) {
+      const endIndex = index + 10 < asins.length ? index + 10 : asins.length;
+      const chunk = asins.slice(index, endIndex);
+      const newRequestParameters = { ...requestParameters, ...{ ItemIds: chunk }};
+      console.log(newRequestParameters)
+      try {
+        let result = await amazonPaapi.GetItems(commonParameters, newRequestParameters);
+        await sleep(5000);
+        index += chunk.length;
+        yield result;
+      } catch(err) {
+          console.log(err);
+      }
+    }
+}
+
 io.on('connection', function(socket) {
     console.log('a user connected: ', socket.id);
     connections.push(socket.id);
@@ -100,68 +122,73 @@ io.on('connection', function(socket) {
                 'Offers.Listings.Price'
             ]
         };
+ 
+        for await (const res of getBatch(commonParameters, requestParameters)) {
+            // problem: this only runs once, it seems, but it also runs twice in that it keeps going and tries to find item not in asin cache
+            console.log(new Date());
+            console.log("ITEM RESULT FROM AMAZON");
+            console.log(res.ItemsResult);
 
-        amazonPaapi.GetItems(commonParameters, requestParameters)
-            .then(data => {
-                // now we can populate ASINCache with the information from Amazon about these ASINs
-                // these ASINs are valid
-                for (let i = 0; i < data.ItemsResult.Items.length; i++) {
-                    let item = data.ItemsResult.Items[i];
-                    asinCache[item.ASIN] = {
-                        valid: true,
-                        itemName: item.ItemInfo.Title.DisplayValue
-                    }
+            let data = res;
+
+            for (let i = 0; i < data.ItemsResult.Items.length; i++) {
+                let item = data.ItemsResult.Items[i];
+                console.log("Caching this asin:", item.ASIN);
+                asinCache[item.ASIN] = {
+                    valid: true,
+                    itemName: item.ItemInfo.Title.DisplayValue
                 }
+            }
 
-                // these ASINs are not valid, but the ASIN has to be extracted from the message: 
-                /* "Errors": [
-                    {
-                    "__type": "com.amazon.paapi5#ErrorData",
-                    "Code": "InvalidParameterValue",
-                    "Message": "The ItemId B0077QSLXI provided in the request is invalid."
-                    }
-                ], */
+            // these ASINs were rejected by Amazon, but the ASIN has to be extracted from the message: 
+            /* "Errors": [
+                {
+                "__type": "com.amazon.paapi5#ErrorData",
+                "Code": "InvalidParameterValue",
+                "Message": "The ItemId B0077QSLXI provided in the request is invalid."
+                }
+            ], */
 
-                console.log(data.Errors);
+            if (data.Errors) {
                 const extractedASINs = data.Errors.map((err) => {
-                        const regexp = /[a-zA-Z0-9]{10}/;
-                        const match = err.Message.match(regexp);
-                        return match ? match[0] : null;
-                       }).filter(i => i)
+                    const regexp = /[a-zA-Z0-9]{10}/;
+                    const match = err.Message.match(regexp);
+                    return match ? match[0] : null;
+                   }).filter(i => i)
 
                 extractedASINs.forEach((asin) => {
+                    console.log("Caching this asin:", asin);
                     asinCache[asin] = {
                         valid: false,
                         itemName: 'Item not found - check link manually'
                     }
                 });
+            }
+        }
+        
+        urls.forEach((urlData) => {
 
-                // now we know the status of all these asins, so let's feed the user's urls back to the front-end one by one
-                // for each url on the user's blog post
-                // create an object called urlData and send it to the socket 
-                urls.forEach((urlData) => {
-                    console.log(urlData);
+            if (!asinCache[urlCache[urlData.url].asin]) {
+                console.log("*** THIS URL / ASIN NOT IN ASINCACHE OBJECT ***");
+                console.log(urlData);
+                console.log(asinCache);
+            } else {
+                console.log("This URL is in the asin cache");
+                console.log(urlData);
+            }
 
-                    let urlObj = {
-                        urlText: urlData.urlText, // "click here to see it on amazon"
-                        itemName: asinCache[urlCache[urlData.url].asin].itemName, // product title from amazon?
-                        tag: urlCache[urlData.url].tag, // myassociateid-20
-                        url: urlData.url, // http://amzn.to/1234XYZ or similar 
-                        validOnAmazon: asinCache[urlCache[urlData.url].asin].valid // asinCache[ASIN]: true/false 
-                    };
-                
-                    results.push(urlObj); // build a results array for file-writing purposes  
-                    
-                    sendToFront(urlObj, socketID);
-
-                });
-            })
-            .catch(error => {
-                // catch an error.
-                console.log("CATCH - ERROR:");
-                console.log(error);
-                
-            });
+            let urlObj = {
+                urlText: urlData.urlText, // "click here to see it on amazon"
+                itemName: asinCache[urlCache[urlData.url].asin] ? asinCache[urlCache[urlData.url].asin].itemName : 'no name found', // product title from amazon
+                tag: urlCache[urlData.url].tag, // myassociateid-20
+                url: urlData.url, // http://amzn.to/1234XYZ or similar 
+                validOnAmazon: asinCache[urlCache[urlData.url].asin].valid // asinCache[ASIN]: true/false 
+            };
+        
+            results.push(urlObj); // build a results array for file-writing purposes  
+            
+            sendToFront(urlObj, socketID);
+        });
     });
 });
 
@@ -216,12 +243,12 @@ async function extractASINAndTagFromURL(url) {
     let asin = '';
     let tag = 'no tag found';
 
-    console.log("extracting ASIN and Tag from this url: ", url);
+    //console.log("extracting ASIN and Tag from this url: ", url);
     const shortenedMatch = url.match(/http(s?):\/\/amzn.to\/([a-zA-Z0-9]+)/);
     const shortened = shortenedMatch ? shortenedMatch[0] : '';
 
     if (shortenedMatch) {
-        console.log("shortenedMatch is true");
+        //console.log("shortenedMatch is true");
         // if this is a shortened URL, so we have to figure out where it goes 
         const longURL = await uu.expand(shortened);
             if (longURL) {
@@ -237,7 +264,7 @@ async function extractASINAndTagFromURL(url) {
                 console.log('This url can\'t be expanded');
             }
     } else {
-        console.log("long url is true");
+        //console.log("long url is true");
         // it's already a long URL 
         const tagRaw = url.match(/(tag=([A-Za-z0-9-]{3,}))/);
         tag = tagRaw[0].replace('tag=','');
