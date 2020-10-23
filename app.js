@@ -92,8 +92,6 @@ io.on('connection', function(socket) {
 
         let urls = await articleScraper(url);
 
-        console.log("urls count:", urls.length);
-
         sendScrapedURLCount(urls.length);
         /* The scraper returns an array of Amazon affiliate links from the user's blog article .
             This code visits each one and builds an object representing the data on the page, 
@@ -108,10 +106,6 @@ io.on('connection', function(socket) {
         let asins = await getAsins(urls);
         let uniqueAsins = [...new Set(asins)];
 
-        console.log("asins array for Amazon:");
-        console.log(uniqueAsins);
-        console.log("there are " + uniqueAsins.length + "asins in the array");
-
         // now ask Amazon about these ASINs
         const requestParameters = {
             'ItemIds': uniqueAsins,
@@ -124,16 +118,10 @@ io.on('connection', function(socket) {
         };
  
         for await (const res of getBatch(commonParameters, requestParameters)) {
-            // problem: this only runs once, it seems, but it also runs twice in that it keeps going and tries to find item not in asin cache
-            console.log(new Date());
-            console.log("ITEM RESULT FROM AMAZON");
-            console.log(res.ItemsResult);
-
             let data = res;
 
             for (let i = 0; i < data.ItemsResult.Items.length; i++) {
                 let item = data.ItemsResult.Items[i];
-                console.log("Caching this asin:", item.ASIN);
                 asinCache[item.ASIN] = {
                     valid: true,
                     itemName: item.ItemInfo.Title.DisplayValue
@@ -157,7 +145,6 @@ io.on('connection', function(socket) {
                    }).filter(i => i)
 
                 extractedASINs.forEach((asin) => {
-                    console.log("Caching this asin:", asin);
                     asinCache[asin] = {
                         valid: false,
                         itemName: 'Item not found - check link manually'
@@ -165,7 +152,7 @@ io.on('connection', function(socket) {
                 });
             }
         }
-        
+
         urls.forEach((urlData) => {
 
             if (!asinCache[urlCache[urlData.url].asin]) {
@@ -205,8 +192,6 @@ app.get('/fetch-static-data', (req, res) => {
         if (err) throw err;
         //io.emit('mandiTest', 'socket stuff: read in some json data!!');
         io.emit('staticDataReceived', JSON.parse(data));
-        //console.log("Sending JSON data to front-end");
-        //res.send(data);
     });
 });
 
@@ -217,8 +202,8 @@ async function getAsins(urls) {
 
         let data = await extractASINAndTagFromURL(urlData.url);
 
+        // make an entry for it in the cache 
         if (!urlCache[urlData.url]) {
-            // make an entry for it in the cache 
             urlCache[urlData.url] = {
                 itemName:"unprocessed",
                 validOnAmazon:false,
@@ -229,7 +214,6 @@ async function getAsins(urls) {
 
         if (data.asin) {
             asins.push(data.asin);
-            //console.log("ASIN: " + data.asin + " TAG: " + data.tag);
         } else {
             console.log(urlData.url + " does not have a valid ASIN");
         }
@@ -248,31 +232,25 @@ async function extractASINAndTagFromURL(url) {
     const shortened = shortenedMatch ? shortenedMatch[0] : '';
 
     if (shortenedMatch) {
-        //console.log("shortenedMatch is true");
-        // if this is a shortened URL, so we have to figure out where it goes 
+        // if this is a shortened URL, we have to figure out where it goes 
         const longURL = await uu.expand(shortened);
             if (longURL) {
-                //console.log(`Original URL is ${longURL}`);
-
                 const tagRaw = longURL.match(/(tag=([A-Za-z0-9-]{3,}))/);
                 tag = tagRaw[0].replace('tag=','');
 
                 const asinMatch = longURL.match(/\/[A-Z0-9]{4,}\//);
                 asin = asinMatch ? asinMatch[0].replace(/\//g, '') : '';
-                //console.log("Shortened url processed, got this asin: ", asin);
             } else {
                 console.log('This url can\'t be expanded');
             }
     } else {
-        //console.log("long url is true");
-        // it's already a long URL 
+        // it is already a full-length URL
         const tagRaw = url.match(/(tag=([A-Za-z0-9-]{3,}))/);
         tag = tagRaw[0].replace('tag=','');
 
         const asinMatch = url.match(/\/\w{8,}[A-Z0-9]/);
         let extractedAsin = asinMatch ? asinMatch[0] : '';
         asin = extractedAsin.replace('/', ''); // remove leading slash if exists
-        //console.log("Long url processed, got this asin: ", asin);
     }
     
     return {asin, tag};
