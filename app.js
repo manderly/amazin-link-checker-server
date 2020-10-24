@@ -92,6 +92,7 @@ io.on('connection', function(socket) {
 
         let urls = await articleScraper(url);
 
+
         sendScrapedURLCount(urls.length);
         /* The scraper returns an array of Amazon affiliate links from the user's blog article .
             This code visits each one and builds an object representing the data on the page, 
@@ -118,6 +119,7 @@ io.on('connection', function(socket) {
         };
  
         for await (const res of getBatch(commonParameters, requestParameters)) {
+            console.log(new Date());
             let data = res;
 
             for (let i = 0; i < data.ItemsResult.Items.length; i++) {

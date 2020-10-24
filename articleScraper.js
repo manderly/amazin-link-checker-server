@@ -89,7 +89,7 @@ async function articleScraper(url) {
                     };
                     urls.push(articleURLData);
                 } else {
-                    console.log("This is not an Amazon URL:", extracted.ahref);
+                    //console.log("This is not an Amazon URL:", extracted.ahref);
                 }
             } else {
                 console.log("This URL does not have an ahref property:", extracted);
