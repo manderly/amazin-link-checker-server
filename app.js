@@ -30,8 +30,8 @@ function getItemErrorName(errMsg) {
     return returnStr;
 }
 
-function sendToFront(processedURLData, linksProcessed, id) {
-    io.to(id).emit('serverDataReceived', processedURLData, linksProcessed);
+function sendToFront(processedURLData, linksProcessed, scrapeInProgress, id) {
+    io.to(id).emit('serverDataReceived', processedURLData, linksProcessed, scrapeInProgress);
 }
 
 function sendScrapedURLCount(count) {
@@ -88,14 +88,21 @@ function updateFromEndWithProgress(urls, socketID) {
     // now the asin cache is filled in, so update the urls in the scrapedUrls object
     linksProcessed = 0;
     urls.forEach((urlData) => {
+        linksProcessed+=1;
         if (!asinCache[urlCache[urlData.url].asin]) {
             console.log("*** THIS URL / ASIN NOT IN ASINCACHE OBJECT ***");
             console.log(urlData);
             console.log(asinCache);
+
+            scrapedUrlsObj[urlData.url].urlText = urlData.urlText;
+            scrapedUrlsObj[urlData.url].itemName = 'No item name found', // product title from amazon
+            scrapedUrlsObj[urlData.url].tag = urlCache[urlData.url].tag, // myassociateid-20
+            scrapedUrlsObj[urlData.url].url = urlData.url, // http://amzn.to/1234XYZ or similar 
+            scrapedUrlsObj[urlData.url].validOnAmazon = false // asinCache[ASIN]: true/false 
+
         } else {
             console.log("This URL is in the asin cache");
             console.log(urlData);
-            linksProcessed+=1;
 
             scrapedUrlsObj[urlData.url].urlText = urlData.urlText;
             scrapedUrlsObj[urlData.url].itemName = asinCache[urlCache[urlData.url].asin] ? asinCache[urlCache[urlData.url].asin].itemName : 'no name found', // product title from amazon
@@ -108,7 +115,7 @@ function updateFromEndWithProgress(urls, socketID) {
     // make it an array and send to the front 
     let urlsWithAmazonDataArray = Object.values(scrapedUrlsObj);
 
-    sendToFront(urlsWithAmazonDataArray, linksProcessed, socketID);
+    sendToFront(urlsWithAmazonDataArray, linksProcessed, false, socketID);
 }
 
 async function contactAmazon(commonParameters, uniqueAsins, urls, socketID) {
@@ -207,7 +214,7 @@ io.on('connection', function(socket) {
         // send just the scraped urls to the front, before getting any data from amazon 
         scrapedUrlsObj = buildScrapedURLsObject(urls);
         let scrapedUrlsArray = Object.values(scrapedUrlsObj);
-        sendToFront(scrapedUrlsArray, 0, socketID); // 0 links processed because this is just the scrape 
+        sendToFront(scrapedUrlsArray, 0, false, socketID); // 0 links processed because this is just the scrape 
 
         // now extract the unique asins for sending to amazon 
         let uniqueAsins = await getUniqueASINs(urls);
